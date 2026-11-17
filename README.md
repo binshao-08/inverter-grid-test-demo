@@ -1,5 +1,7 @@
 # 逆变器并网测试数据整理工具
 
+[在线体验演示](https://binshao-08.github.io/inverter-grid-test-demo/)
+
 *Inverter Grid-Connection Test Data Processing*
 
 把逆变器并网测试仪器导出的连续录波，整理成**按工况汇总、能回到曲线复核的结果**。测试人员可以从一行偏差或判定回看对应的测试条件和取样区间，再将汇总表与图表用于报告整理。
