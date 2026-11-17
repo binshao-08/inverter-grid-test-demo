@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'">
+<title>逆变器并网测试数据整理工具 · 作品集演示</title>
+<style>
+  :root { color-scheme: light; --ink:#152b33; --muted:#456069; --line:#d5e4e5; --accent:#006052; --soft:#e5f6ef; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#f1f6f5; color:var(--ink); font:16px/1.65 system-ui,-apple-system,sans-serif; }
+  header { background:#122b31; color:#f3fffa; padding:clamp(28px,5vw,62px) 0; }
+  header > div, main { width:min(960px,calc(100% - 32px)); margin:auto; }
+  .eyebrow { color:#a3dfce; font-size:.83rem; font-weight:700; letter-spacing:.12em; }
+  h1 { font-size:clamp(2rem,5vw,3.4rem); line-height:1.13; margin:.28em 0; letter-spacing:-.035em; }
+  header p { margin:.7em 0 0; color:#d4e9e4; max-width:38rem; }
+  main { padding:24px 0 40px; }
+  .card { background:white; border:1px solid var(--line); border-radius:17px; padding:clamp(15px,3.3vw,31px); box-shadow:0 10px 30px #183a3210; }
+  h2 { margin:0 0 .3em; font-size:1.35rem; }
+  p { margin:.4em 0; }
+  .muted, .legend { color:var(--muted); }
+  .legend { font-size:.9rem; }
+  .legend span { display:inline-block; margin-right:15px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:2px; margin-right:5px; vertical-align:baseline; }
+  figure { margin:15px 0 20px; }
+  svg { display:block; width:100%; height:auto; border:1px solid var(--line); border-radius:10px; }
+  .bar { border-block:1px solid var(--line); padding:14px 0; display:flex; justify-content:space-between; align-items:center; gap:12px 20px; flex-wrap:wrap; }
+  .knob { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; font-weight:650; }
+  input[type="range"] { width:clamp(110px,25vw,170px); accent-color:var(--accent); }
+  output { min-width:62px; font-variant-numeric:tabular-nums; }
+  button { border:0; padding:9px 15px; border-radius:8px; background:var(--accent); color:white; font:inherit; font-weight:650; cursor:pointer; }
+  button:hover { background:#004c41; }
+  :focus-visible { outline:3px solid #b16411; outline-offset:4px; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  caption { text-align:left; font-weight:700; padding:13px 0 7px; }
+  th, td { padding:.55em .4em; text-align:right; border-bottom:1px solid var(--line); }
+  th:first-child, td:first-child { text-align:left; }
+  thead th { color:var(--muted); font-size:.89rem; }
+  .badge { display:inline-block; padding:.05em .48em; border-radius:5px; background:var(--soft); color:#005447; font-weight:700; white-space:nowrap; }
+  .badge.fail { background:#ffefe6; color:#8c2e10; }
+  footer { margin-top:15px; font-size:.9rem; color:var(--muted); }
+  @media (max-width:480px) { th,td { padding:.48em .12em;font-size:.85rem; } }
+</style>
+</head>
+<body>
+<header><div>
+  <div class="eyebrow">测试数据自动化&nbsp; / &nbsp;虚构数据演示</div>
+  <h1>逆变器并网测试数据整理工具</h1>
+  <p>把仪器导出的连续录波，整理成按工况汇总的结果。测试人员能追溯每一行用的是哪段曲线、哪些取样点，以及偏差是怎么算出来的。</p>
+</div></header>
+<main>
+<section class="card" aria-labelledby="demo-heading">
+  <h2 id="demo-heading">用曲线复核一次有功功率结果</h2>
+  <p class="muted">示例按功率变化分出三个工况，每段取绿色窗口内最后两个点的平均值。第 3 段目标是 120 W，均值是 126 W；试试把允许偏差从 ±5 W 调到 ±6 W。</p>
+  <figure>
+    <svg id="chart" viewBox="0 0 600 220" role="img" aria-label="12 个虚构有功功率测点形成三个工况。浅绿色标记各段最后两点，虚线标记各段目标值。"></svg>
+    <figcaption class="legend"><span><i style="background:#006052"></i>实测曲线</span><span><i style="background:#bde9d7"></i>取样范围</span><span><i style="background:#9a591c"></i>目标值（虚线）</span></figcaption>
+  </figure>
+  <div class="bar">
+    <div class="knob"><label for="tolerance">允许偏差</label><input id="tolerance" type="range" min="1" max="10" step="1" value="3"><output for="tolerance" id="tol-value">±3 W</output></div>
+    <button id="download" type="button">下载汇总 CSV</button>
+  </div>
+  <table>
+    <caption id="summary" aria-live="polite"></caption>
+    <thead><tr><th scope="col">工况</th><th scope="col">目标 W</th><th scope="col">均值 W</th><th scope="col">偏差 W</th><th scope="col">判定</th></tr></thead>
+    <tbody id="results"></tbody>
+  </table>
+</section>
+<footer>作品集演示仅使用内置虚构数据，可离线打开。示例限值只用于说明计算，不代表检测标准。</footer>
+</main>
+<script>
+  // ponytail: Fixed synthetic input keeps the demo inspectable; no file parser or company rules.
+  const samples = [59, 60, 60, 61, 88, 89, 90, 91, 124, 125, 126, 126];
+  const targets = [60, 90, 120];
+  const starts = [0, ...samples.flatMap((v,i) => i && Math.abs(v-samples[i-1]) > 15 ? [i] : [])];
+  const segments = starts.map((start,i) => {
+    const end = starts[i+1] ?? samples.length;
+    const included = samples.slice(Math.max(start,end-2),end);
+    const mean = included.reduce((sum,v) => sum+v,0)/included.length;
+    return {start,end,target:targets[i],mean,delta:mean-targets[i]};
+  });
+  const x = i => 62 + i*44;
+  const y = v => 175 - (v-50)*1.63;
+  document.querySelector('#chart').innerHTML = `
+    <rect width="600" height="220" fill="#f7fbfa"/>
+    ${[60,90,120].map(v => `<line x1="40" x2="570" y1="${y(v)}" y2="${y(v)}" stroke="#cbdedc"/><text x="31" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('')}
+    <text x="31" y="26" text-anchor="end">W</text>
+    ${segments.map(({start,end,target},i) => `
+      <rect x="${x(end-2)-18}" y="24" width="81" height="151" fill="#bde9d7" opacity=".68" rx="3"/>
+      <line x1="${x(start)-18}" x2="${x(end-1)+18}" y1="${y(target)}" y2="${y(target)}" stroke="#9a591c" stroke-width="2" stroke-dasharray="5 4"/>
+      <text x="${(x(start)+x(end-1))/2}" y="194" text-anchor="middle">工况 ${i+1}</text>`).join('')}
+    <polyline points="${samples.map((v,i)=>`${x(i)},${y(v)}`).join(' ')}" fill="none" stroke="#006052" stroke-width="3" stroke-linejoin="round"/>
+    ${samples.map((v,i) => `<circle cx="${x(i)}" cy="${y(v)}" r="3.8" fill="#006052" stroke="white" stroke-width="1.3"/>`).join('')}
+    <text x="570" y="211" text-anchor="end">采样顺序 →</text>`;
+  const tolerance = document.querySelector('#tolerance');
+  const verdict = s => Math.abs(s.delta) <= Number(tolerance.value) ? '通过' : '超出';
+  function update() {
+    document.querySelector('#tol-value').textContent = `±${tolerance.value} W`;
+    document.querySelector('#summary').textContent = `${segments.filter(s=>verdict(s)==='通过').length} / ${segments.length} 个工况通过`;
+    document.querySelector('#results').innerHTML = segments.map((s,i) => {
+      const result = verdict(s);
+      return `<tr><th scope="row">${i+1}</th><td>${s.target}</td><td>${s.mean.toFixed(1)}</td><td>${s.delta >= 0 ? '+' : ''}${s.delta.toFixed(1)}</td><td><span class="badge${result==='超出'?' fail':''}">${result}</span></td></tr>`;
+    }).join('');
+  }
+  tolerance.addEventListener('input',update);
+  document.querySelector('#download').addEventListener('click',() => {
+    const rows = [['工况','目标 W','均值 W','偏差 W','允许偏差 W','判定'],...segments.map((s,i)=>[i+1,s.target,s.mean,s.delta,tolerance.value,verdict(s)])];
+    const url = URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
+    const a = document.createElement('a');
+    a.download = 'synthetic-segment-summary.csv'; a.href = url; document.body.append(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+  update();
+</script>
+</body>
+</html>
